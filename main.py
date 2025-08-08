@@ -28,12 +28,7 @@ except KeyError as e:
     raise
 
 
-
-sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
-                                               client_secret=CLIENT_SECRET,
-                                               redirect_uri=REDIRECT_URI,
-                                               scope="user-read-recently-played"))
-def get_spotify_connectiion() -> Spotify:
+def get_spotify_connection() -> Spotify:
     """Returns a Spotify connection object."""
     try:
         connection = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
@@ -45,9 +40,11 @@ def get_spotify_connectiion() -> Spotify:
         logging.error(f"Failed to connect to Spotify API: {e}")
         raise
 
+# Initialize Spotify connection
+connection = get_spotify_connection()
 
 def get_recently_played_items(connection: Spotify,limit: int) -> list:
-    results = get_spotify_connectiion().current_user_recently_played(limit)
+    results = connection.current_user_recently_played(limit=limit)
     recently_played_items = [
         {
             'Artist(s)': ", ".join(item['name'] for item in item['track']['artists']),
@@ -76,7 +73,7 @@ def save_to_csv(df: pd.DataFrame, filepath: str) -> None:
 
 def main():
     try:
-        df = clean_dataframe(get_recently_played_items(sp, 50))
+        df = clean_dataframe(get_recently_played_items(connection, 50))
         save_to_csv(df, file_path)
         upload_file_to_s3(file_path)
         s3_to_snowflake()
