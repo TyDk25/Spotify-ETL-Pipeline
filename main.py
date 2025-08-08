@@ -2,13 +2,19 @@ import spotipy
 import pandas as pd
 import logging
 import os
-from s3bucket import upload_file_to_s3
-from snowflakeconn import s3_to_snowflake
-from dotenv import load_dotenv
+from aws_connections.s3_bucket import upload_file_to_s3
+from snowflake.snowflake_connection import s3_to_snowflake
+from dotenv import load_dotenv, find_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy.client import Spotify
+from aws_connections.s3_to_redshift import s3_to_redshift
+from pathlib import Path
 
-load_dotenv()
+# Logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+load_dotenv('.env')
+
 
 
 try:
@@ -21,18 +27,27 @@ except KeyError as e:
     print(f"Environment variable {e} not set. Please check your .env file.")
     raise
 
-scope = "user-library-read"
-logger = logging.getLogger("spotify_extraction-logger")
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
                                                client_secret=CLIENT_SECRET,
                                                redirect_uri=REDIRECT_URI,
                                                scope="user-read-recently-played"))
+def get_spotify_connectiion() -> Spotify:
+    """Returns a Spotify connection object."""
+    try:
+        connection = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
+                                               client_secret=CLIENT_SECRET,
+                                               redirect_uri=REDIRECT_URI,
+                                               scope="user-read-recently-played"))
+        return connection
+    except Exception as e:
+        logging.error(f"Failed to connect to Spotify API: {e}")
+        raise
+
 
 def get_recently_played_items(connection: Spotify,limit: int) -> list:
-    results = connection.current_user_recently_played(limit)
+    results = get_spotify_connectiion().current_user_recently_played(limit)
     recently_played_items = [
         {
             'Artist(s)': ", ".join(item['name'] for item in item['track']['artists']),
@@ -54,17 +69,19 @@ def clean_dataframe(items:list) -> pd.DataFrame:
 def save_to_csv(df: pd.DataFrame, filepath: str) -> None:
     try: 
         df.to_csv(filepath, index=False)
-        logger.info(f'Data saved to {filepath}')
+        logging.info(f'Data saved to {filepath}')
     except FileNotFoundError as e:
-        logger.error(f"Filepath not found: {e}")
+        logging.error(f"Filepath not found: {e}")
         raise
 
 def main():
     try:
-        df = clean_dataframe(get_recently_played_items(50))
+        df = clean_dataframe(get_recently_played_items(sp, 50))
         save_to_csv(df, file_path)
         upload_file_to_s3(file_path)
         s3_to_snowflake()
+        s3_to_redshift()
+        logging.info("Data sent to Redshift successfully")
         logging.info("Successfully uploaded file to S3")
         logging.info("Successfully copied data to Snowflake table")
     except Exception as e:

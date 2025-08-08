@@ -28,7 +28,7 @@ def s3_to_snowflake() -> str:
         curr.execute(
             """
             COPY INTO SPOTIFY_EXTRACTION.SPOTIFY_EXTRACTION_SCHEMA.RECENTLY_PLAYED_TABLE 
-            FROM s3://dataset-spotify-extraction/dataset.csv
+            FROM s3://ds-spotify-extraction-bucket/dataset.csv
             STORAGE_INTEGRATION = snowflake_access
             FILE_FORMAT = (
                 TYPE = 'CSV' 
@@ -38,7 +38,6 @@ def s3_to_snowflake() -> str:
             )
             """
         )
-
 
     return f"Data copied to Snowflake table - {table_name} successfully."
 
