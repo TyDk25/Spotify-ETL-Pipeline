@@ -6,6 +6,7 @@ from s3bucket import upload_file_to_s3
 from snowflakeconn import s3_to_snowflake
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.client import Spotify
 
 load_dotenv()
 
@@ -30,8 +31,8 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
                                                redirect_uri=REDIRECT_URI,
                                                scope="user-read-recently-played"))
 
-def get_recently_played_items(limit: int) -> list:
-    results = sp.current_user_recently_played(limit)
+def get_recently_played_items(connection: Spotify,limit: int) -> list:
+    results = connection.current_user_recently_played(limit)
     recently_played_items = [
         {
             'Artist(s)': ", ".join(item['name'] for item in item['track']['artists']),
@@ -41,8 +42,6 @@ def get_recently_played_items(limit: int) -> list:
         }
         for item in results['items']
     ]
-    
-    
     return recently_played_items
 
 def clean_dataframe(items:list) -> pd.DataFrame:
